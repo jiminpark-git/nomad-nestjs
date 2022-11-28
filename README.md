@@ -14,8 +14,8 @@
 
 1. [ARCHITECTURE OF NESTJS](#1-architecture-of-nestjs)
 2. [REST API](#2-rest-api)
-3. [UNIT TESTING]
-4. [E2E TESTING]
+3. [UNIT TESTING](#3-unit-testing)
+4. [E2E TESTING](#4-e2e-testing)
 
 ---
 
@@ -82,7 +82,7 @@ export class AppService {
 
 NestJS의 Controller를 생성하는 nest cli 명령어 (MovieController 생성)
 
-```zsh
+```bash
 nest g co movie
 ```
 
@@ -93,7 +93,7 @@ nest g co movie
 ```ts
 @Controller('movie')
 export class MovieController {
-  constructor(private readonly movieServicec: MovieService) {}
+  constructor(private readonly movieService: MovieService) {}
 
   @Get()
   getAll(): Movie[] {
@@ -120,7 +120,7 @@ export class MovieController {
 
 NestJS의 Service를 생성하는 nest cli 명령어 (MovieService 생성)
 
-```zsh
+```bash
 nest g s movie
 ```
 
@@ -221,7 +221,7 @@ create(@Body() movieData: CreateMovieDTO): boolean {
 
 NestJS의 Module 생성하는 nest cli 명령어 (MovieModule 생성)
 
-```zsh
+```bash
 nest g mo movie
 ```
 
@@ -242,7 +242,7 @@ MovieController에서 MovieService 의존성 주입(DI) 받기
 ```ts
 @Controller('movie')
 export class MovieController {
-  constructor(private readonly movieServicec: MovieService) {}
+  constructor(private readonly movieService: MovieService) {}
 }
 ```
 
@@ -254,4 +254,175 @@ export class MovieController {
   controllers: [AppController],
 })
 export class AppModule {}
+```
+
+---
+
+## 3. UNIT TESTING
+
+### 3.1. Jest
+
+> Jest는 Jasmine 위에 구축되고 Meta에서 유지 관리하는 JavaScript 테스트 프레임워크입니다.
+
+**package.json**
+
+```json
+"scripts": {
+  ...
+  "test": "jest",
+  "test:watch": "jest --watch",
+  "test:cov": "jest --coverage",
+  "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+  "test:e2e": "jest --config ./test/jest-e2e.json"
+},
+```
+
+### 3.2. .spec.ts
+
+모듈, 컨트롤러 그리고 서비스를 생성할 때 같이 생성된 .spec.ts 파일은 해당 파일의 테스트 파일이다.
+
+**movie.service.spec.ts**
+
+```ts
+describe('MovieService', () => {
+  let service: MovieService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [MovieService],
+    }).compile();
+
+    service = module.get<MovieService>(MovieService);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  describe('getAll', () => {
+    it('should return an array', () => {
+      const movies = service.getAll();
+      expect(movies).toBeInstanceOf(Array);
+    });
+  });
+
+  describe('getOne', () => {
+    it('should return a movie', () => {
+      service.create({
+        title: 'Test',
+        year: 2020,
+        genres: ['test'],
+      });
+
+      const movie = service.getOne(1);
+      expect(movie).toBeDefined();
+      expect(movie.id).toEqual(1);
+    });
+
+    it('should throw 404 error', () => {
+      const testId: number = 999;
+      try {
+        service.getOne(testId);
+      } catch (e) {
+        expect(e).toBeInstanceOf(NotFoundException);
+        expect(e.message).toEqual(`Movie with ID ${testId} not found.`);
+      }
+    });
+  });
+
+  describe('create', () => {
+    it('should create a movie', () => {
+      const beforeCreate = service.getAll().length;
+      service.create({
+        title: 'Test',
+        year: 2020,
+        genres: ['test'],
+      });
+      const afterCreate = service.getAll().length;
+
+      expect(afterCreate).toBeGreaterThan(beforeCreate);
+    });
+  });
+});
+```
+
+Jest로 MovieService를 유닛 테스트하는 cli 명령어
+
+```bash
+npm run test:watch movie.service
+```
+
+---
+
+## 4. E2E TESTING
+
+### 4.1. E2E(End-to-End)
+
+API의 전체 동작을 사용자 관점에서 테스트
+
+**app.e2e-spec.ts**
+
+```ts
+describe('AppController (e2e)', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true, // Decorator가 존재하지 않는 프로퍼티를 허용하지 않음
+        forbidNonWhitelisted: true, // 허용하지 않은 프로퍼티를 사용한 리퀘스트를 차단
+        transform: true, // 유저가 보낸 값의 타입을 자동 변환
+      }),
+    ); // spec 파일에서도 Validatoin 설정
+    await app.init();
+  });
+
+  it('/ (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/')
+      .expect(200)
+      .expect('Hello, World!');
+  });
+
+  describe('/movie', () => {
+    it('GET 200', () => {
+      return request(app.getHttpServer()).get('/movie').expect(200).expect([]);
+    });
+    it('POST 201', () => {
+      return request(app.getHttpServer())
+        .post('/movie')
+        .send({
+          title: 'Test',
+          year: 2000,
+          genres: ['test'],
+        })
+        .expect(201);
+    });
+    it('POST 400', () => {
+      return request(app.getHttpServer())
+        .post('/movie')
+        .send({
+          title: 'Test',
+          year: 2000,
+          genres: ['test'],
+          something: 'test',
+        })
+        .expect(400);
+    });
+  });
+
+  describe('/movie/:id', () => {
+    it('GET 200', () => {
+      return request(app.getHttpServer()).get('/movie/1').expect(200);
+    });
+    it('GET 404', () => {
+      return request(app.getHttpServer()).get('/movie/999').expect(404);
+    });
+  });
+});
 ```

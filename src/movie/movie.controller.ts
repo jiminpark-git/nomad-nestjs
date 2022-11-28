@@ -14,26 +14,26 @@ import { UpdateMovieDTO } from './dto/update-movie.dto';
 
 @Controller('movie')
 export class MovieController {
-  constructor(private readonly movieServicec: MovieService) {}
+  constructor(private readonly movieService: MovieService) {}
 
   @Get()
   getAll(): Movie[] {
-    return this.movieServicec.getAll();
+    return this.movieService.getAll();
   }
 
   @Get(':id')
   getOne(@Param('id') movieId: number): Movie {
-    return this.movieServicec.getOne(movieId);
+    return this.movieService.getOne(movieId);
   }
 
   @Post()
   create(@Body() movieData: CreateMovieDTO): boolean {
-    return this.movieServicec.create(movieData);
+    return this.movieService.create(movieData);
   }
 
   @Delete(':id')
   deleteOne(@Param('id') movieId: number): boolean {
-    return this.movieServicec.deleteOne(movieId);
+    return this.movieService.deleteOne(movieId);
   }
 
   @Patch(':id')
@@ -41,6 +41,6 @@ export class MovieController {
     @Param('id') movieId: number,
     @Body() updateData: UpdateMovieDTO,
   ): boolean {
-    return this.movieServicec.update(movieId, updateData);
+    return this.movieService.update(movieId, updateData);
   }
 }
